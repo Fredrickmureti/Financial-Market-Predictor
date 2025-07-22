@@ -756,8 +756,16 @@ low_volatility = atr_percent < ta.sma(atr_percent, 20) * 0.8
 volatility_filter = not use_volatility_filter or not high_volatility
 
 // Trend Analysis - Multi-timeframe
-higher_tf_bullish = request.security(syminfo.tickerid, timeframe.multiply(timeframe.period, 4), ema50 > ema200 and close > ema50)
-higher_tf_bearish = request.security(syminfo.tickerid, timeframe.multiply(timeframe.period, 4), ema50 < ema200 and close < ema50)
+// Using string-based timeframe instead of timeframe.multiply which is not supported in some Pine Script versions
+higher_timeframe = timeframe.period == "D" ? "W" : 
+                  timeframe.period == "240" ? "D" : 
+                  timeframe.period == "60" ? "240" : 
+                  timeframe.period == "30" ? "60" : 
+                  timeframe.period == "15" ? "30" : 
+                  timeframe.period == "5" ? "15" : "30"
+                  
+higher_tf_bullish = request.security(syminfo.tickerid, higher_timeframe, ema50 > ema200 and close > ema50)
+higher_tf_bearish = request.security(syminfo.tickerid, higher_timeframe, ema50 < ema200 and close < ema50)
 trend_filter = not use_trend_filter or (higher_tf_bullish and ema12 > ema26) or (higher_tf_bearish and ema12 < ema26)
 
 // Advanced Volume Analysis
@@ -935,9 +943,8 @@ detect_market_structure() =>
     var lower_highs = 0
     var lower_lows = 0
     
-    // Detect swings using pivot points
-    swing_high = ta.pivothigh(high, ms_pivot_length, ms_pivot_length)
-    swing_low = ta.pivotlow(low, ms_pivot_length, ms_pivot_length)
+    // Detect swings using pivot points - now defined outside the function and passed in
+    // Using global swing_high and swing_low from the outer scope
     
     if not na(swing_high)
         if swing_high > last_swing_high and last_swing_high > 0
@@ -973,9 +980,11 @@ detect_market_structure() =>
 
 // 4. Liquidity Analysis (Institutional Stop Hunting)
 // Liquidity analysis helps identify where institutional traders might push price to trigger retail stops
-detect_liquidity_zones() =>
-    var liquidity_highs = array.new_float(0)  // [price, strength, swept]
-    var liquidity_lows = array.new_float(0)   // [price, strength, swept]
+detect_liquidity_zones(swing_high, swing_low, atr_value) =>
+    var liq_highs = array.new_float(0)  // [price, strength, swept]
+    var liq_lows = array.new_float(0)   // [price, strength, swept]
+    var recent_high_sweep = false
+    var recent_low_sweep = false
     
     // Detect swing point clusters that indicate liquidity
     if not na(swing_high)
@@ -986,9 +995,9 @@ detect_liquidity_zones() =>
                 high_cluster := true
         
         if high_cluster
-            array.push(liquidity_highs, swing_high)
-            array.push(liquidity_highs, 1.0)  // Strength
-            array.push(liquidity_highs, 0.0)  // 0=not swept, 1=swept
+            array.push(liq_highs, swing_high)
+            array.push(liq_highs, 1.0)  // Strength
+            array.push(liq_highs, 0.0)  // 0=not swept, 1=swept
     
     if not na(swing_low)
         // Check for clustered lows (indicating stop placement)
@@ -998,52 +1007,58 @@ detect_liquidity_zones() =>
                 low_cluster := true
         
         if low_cluster
-            array.push(liquidity_lows, swing_low)
-            array.push(liquidity_lows, 1.0)  // Strength
-            array.push(liquidity_lows, 0.0)  // 0=not swept, 1=swept
+            array.push(liq_lows, swing_low)
+            array.push(liq_lows, 1.0)  // Strength
+            array.push(liq_lows, 0.0)  // 0=not swept, 1=swept
+            
+    [recent_high_sweep, recent_low_sweep, liq_highs, liq_lows]
     
     // Check for liquidity sweeps
-    if array.size(liquidity_highs) > 0
-        for i = 0 to array.size(liquidity_highs) / 3 - 1
+    if array.size(liq_highs) > 0
+        for i = 0 to array.size(liq_highs) / 3 - 1
             idx = i * 3
-            liq_price = array.get(liquidity_highs, idx)
-            if high >= liq_price and array.get(liquidity_highs, idx+2) == 0
-                array.set(liquidity_highs, idx+2, 1.0)  // Mark as swept
+            liq_price = array.get(liq_highs, idx)
+            if high >= liq_price and array.get(liq_highs, idx+2) == 0
+                array.set(liq_highs, idx+2, 1.0)  // Mark as swept
     
-    if array.size(liquidity_lows) > 0
-        for i = 0 to array.size(liquidity_lows) / 3 - 1
+    if array.size(liq_lows) > 0
+        for i = 0 to array.size(liq_lows) / 3 - 1
             idx = i * 3
-            liq_price = array.get(liquidity_lows, idx)
-            if low <= liq_price and array.get(liquidity_lows, idx+2) == 0
-                array.set(liquidity_lows, idx+2, 1.0)  // Mark as swept
+            liq_price = array.get(liq_lows, idx)
+            if low <= liq_price and array.get(liq_lows, idx+2) == 0
+                array.set(liq_lows, idx+2, 1.0)  // Mark as swept
     
     // Look for recent liquidity sweeps followed by rejection
-    recent_high_sweep = false
-    recent_low_sweep = false
+    recent_high_sweep := false
+    recent_low_sweep := false
     
-    if array.size(liquidity_highs) > 0
-        for i = 0 to array.size(liquidity_highs) / 3 - 1
+    if array.size(liq_highs) > 0
+        for i = 0 to array.size(liq_highs) / 3 - 1
             idx = i * 3
-            if array.get(liquidity_highs, idx+2) == 1.0  // If swept
-                sweep_bar = bar_index - array.get(liquidity_highs, idx+1)
-                if sweep_bar <= 3 and close < array.get(liquidity_highs, idx)
+            if array.get(liq_highs, idx+2) == 1.0  // If swept
+                sweep_bar = bar_index - array.get(liq_highs, idx+1)
+                if sweep_bar <= 3 and close < array.get(liq_highs, idx)
                     recent_high_sweep := true
     
-    if array.size(liquidity_lows) > 0
-        for i = 0 to array.size(liquidity_lows) / 3 - 1
+    if array.size(liq_lows) > 0
+        for i = 0 to array.size(liq_lows) / 3 - 1
             idx = i * 3
-            if array.get(liquidity_lows, idx+2) == 1.0  // If swept
-                sweep_bar = bar_index - array.get(liquidity_lows, idx+1)
-                if sweep_bar <= 3 and close > array.get(liquidity_lows, idx)
+            if array.get(liq_lows, idx+2) == 1.0  // If swept
+                sweep_bar = bar_index - array.get(liq_lows, idx+1)
+                if sweep_bar <= 3 and close > array.get(liq_lows, idx)
                     recent_low_sweep := true
     
-    [recent_high_sweep, recent_low_sweep]
+    [recent_high_sweep, recent_low_sweep, liq_highs, liq_lows]
+
+// Define swing points first so we can use them in multiple detectors
+swing_high = ta.pivothigh(high, ms_pivot_length, ms_pivot_length)
+swing_low = ta.pivotlow(low, ms_pivot_length, ms_pivot_length)
 
 // Call the detection functions
 [bull_fvg_price, bear_fvg_price, recent_bull_fvg, recent_bear_fvg] = detect_advanced_fvg(fvg_lookback, fvg_min_size)
 [demand_ob_high, demand_ob_low, supply_ob_high, supply_ob_low, near_demand_ob, near_supply_ob] = detect_premium_ob(ob_lookback)
 [bullish_structure, bearish_structure, bullish_bos, bearish_bos, bullish_choch, bearish_choch] = detect_market_structure()
-[recent_high_sweep, recent_low_sweep] = detect_liquidity_zones()
+[recent_high_sweep, recent_low_sweep, liquidity_highs, liquidity_lows] = detect_liquidity_zones(swing_high, swing_low, atr_value)
 
 // Smart Money Bias Calculation
 smart_money_bullish = bullish_structure and (ema12 > ema26 or bullish_bos) and (not na(bull_fvg_price) or near_demand_ob)
