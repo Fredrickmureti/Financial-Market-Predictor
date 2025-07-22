@@ -76,11 +76,20 @@ export const ApiKeyManager = ({ onKeysUpdated }: ApiKeyManagerProps) => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <Alert>
-          <AlertDescription>
-            Choose a free forex data provider and enter your API key to get real-time data.
+        <Alert variant="destructive">
+          <AlertDescription className="font-medium">
+            ⚠️ Real-time forex data requires an API key. The application is currently using mock data.
           </AlertDescription>
         </Alert>
+        
+        <div className="mb-4 text-sm text-muted-foreground">
+          <p className="mb-2">Select one of the following free API providers to get real-time market data:</p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li><a href="https://www.alphavantage.co/support/#api-key" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">Alpha Vantage <ExternalLink className="h-3 w-3" /></a> - Provides real-time forex rates and historical data</li>
+            <li><a href="https://www.exchangerate-api.com/docs/free" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">ExchangeRate-API <ExternalLink className="h-3 w-3" /></a> - Simple currency conversion API</li>
+            <li><a href="https://currencyapi.com/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">CurrencyAPI <ExternalLink className="h-3 w-3" /></a> - Reliable exchange rates API</li>
+          </ul>
+        </div>
 
         <Tabs value={selectedProvider} onValueChange={setSelectedProvider}>
           <TabsList className="grid w-full grid-cols-3">
@@ -164,6 +173,36 @@ export const ApiKeyManager = ({ onKeysUpdated }: ApiKeyManagerProps) => {
             </div>
           </TabsContent>
         </Tabs>
+
+        <div className="bg-muted/50 p-4 rounded-md border mt-4">
+          <h4 className="font-medium mb-2">Current Status:</h4>
+          <div className="grid grid-cols-3 gap-4 text-sm">
+            <div>
+              <div className="font-medium">Alpha Vantage:</div>
+              <div className={alphaVantageKey ? "text-green-600" : "text-red-600"}>
+                {alphaVantageKey ? "✓ Configured" : "✗ Not configured"}
+              </div>
+            </div>
+            <div>
+              <div className="font-medium">ExchangeRate-API:</div>
+              <div className={exchangeRateKey ? "text-green-600" : "text-red-600"}>
+                {exchangeRateKey ? "✓ Configured" : "✗ Not configured"}
+              </div>
+            </div>
+            <div>
+              <div className="font-medium">CurrencyAPI:</div>
+              <div className={currencyApiKey ? "text-green-600" : "text-red-600"}>
+                {currencyApiKey ? "✓ Configured" : "✗ Not configured"}
+              </div>
+            </div>
+          </div>
+          <div className={`mt-3 ${getCurrentKey() ? "text-green-600" : "text-red-600"} font-medium`}>
+            {getCurrentKey() 
+              ? `✓ ${selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)} is selected and configured. Real-time data will be used.`
+              : `✗ ${selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)} is selected but not configured. Mock data will be used.`
+            }
+          </div>
+        </div>
 
         <div className="flex gap-2">
           <Button 

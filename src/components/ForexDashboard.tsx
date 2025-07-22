@@ -51,8 +51,28 @@ export const ForexDashboard = () => {
                    localStorage.getItem('currencyApiKey');
     if (!hasKeys) {
       setShowApiManager(true);
+      setNotifications(prev => ["⚠️ WARNING: Using mock data. Please add an API key for real-time market data.", ...prev]);
+    } else {
+      const provider = localStorage.getItem('forexProvider') || 'alphavantage';
+      let apiKey = '';
+      
+      switch(provider) {
+        case 'alphavantage':
+          apiKey = localStorage.getItem('alphaVantageKey') || '';
+          break;
+        case 'exchangerate':
+          apiKey = localStorage.getItem('exchangeRateKey') || '';
+          break;
+        case 'currencyapi':
+          apiKey = localStorage.getItem('currencyApiKey') || '';
+          break;
+      }
+      
+      if (!apiKey) {
+        setNotifications(prev => ["⚠️ WARNING: Using mock data. API provider selected but no key provided.", ...prev]);
+      }
     }
-  }, []);
+  }, [refreshKey]);
 
   useEffect(() => {
     if (tradingData?.signal && !tradingData.signal.signal.includes('HOLD')) {
@@ -118,6 +138,58 @@ export const ForexDashboard = () => {
       {showApiManager && (
         <ApiKeyManager onKeysUpdated={handleApiKeysUpdated} />
       )}
+
+      {/* Data Source Alert */}
+      {!showApiManager && (() => {
+        const provider = localStorage.getItem('forexProvider') || 'alphavantage';
+        let apiKey = '';
+        
+        switch(provider) {
+          case 'alphavantage':
+            apiKey = localStorage.getItem('alphaVantageKey') || '';
+            break;
+          case 'exchangerate':
+            apiKey = localStorage.getItem('exchangeRateKey') || '';
+            break;
+          case 'currencyapi':
+            apiKey = localStorage.getItem('currencyApiKey') || '';
+            break;
+        }
+        
+        if (!apiKey) {
+          return (
+            <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4 rounded">
+              <div className="flex items-center">
+                <div className="py-1">
+                  <svg className="h-6 w-6 mr-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-bold">Using Mock Data</p>
+                  <p className="text-sm">Currency prices shown are simulated. <button onClick={() => setShowApiManager(true)} className="underline text-blue-700">Add an API key</button> to get real-time market data.</p>
+                </div>
+              </div>
+            </div>
+          );
+        }
+        
+        return (
+          <div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-4 rounded">
+            <div className="flex">
+              <div className="py-1">
+                <svg className="h-6 w-6 mr-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <p className="font-bold">Using Real-time Data</p>
+                <p className="text-sm">Connected to {provider.charAt(0).toUpperCase() + provider.slice(1)} API for live market prices.</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Enhanced Header */}
       <div className="flex items-center justify-between">
@@ -236,16 +308,44 @@ export const ForexDashboard = () => {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Live Notifications</CardTitle>
+            <CardTitle className="text-lg">System Notifications</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2 max-h-32 overflow-y-auto">
+            <div className="space-y-2 max-h-48 overflow-y-auto">
               {notifications.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No notifications yet</p>
               ) : (
                 notifications.map((notification, index) => (
-                  <div key={index} className="text-xs p-2 bg-muted rounded border-l-2 border-primary">
-                    {notification}
+                  <div 
+                    key={index} 
+                    className={`text-xs p-3 rounded ${
+                      notification.includes('WARNING') 
+                        ? 'bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800' 
+                        : notification.includes('ERROR') 
+                          ? 'bg-red-100 border-l-4 border-red-500 text-red-800'
+                          : notification.includes('BUY') 
+                            ? 'bg-green-50 border-l-4 border-green-500 text-green-800'
+                            : notification.includes('SELL')
+                              ? 'bg-red-50 border-l-4 border-red-500 text-red-800'
+                              : 'bg-muted border-l-4 border-primary'
+                    }`}
+                  >
+                    <div className="flex items-start">
+                      {notification.includes('WARNING') && (
+                        <svg className="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                      )}
+                      {notification}
+                      {notification.includes('API key') && (
+                        <button 
+                          className="ml-2 underline text-blue-700"
+                          onClick={() => setShowApiManager(true)}
+                        >
+                          Add key
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))
               )}

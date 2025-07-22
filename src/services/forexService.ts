@@ -65,8 +65,10 @@ export class ForexService {
 
     console.log(`ForexService: Provider=${provider}, HasKey=${!!apiKey}, KeyLength=${apiKey?.length || 0}`);
 
+    // Check for valid API key and provide clear console output about data source
     if (!this.isValidApiKey(apiKey)) {
-      console.log('Using mock data - no valid API key found');
+      console.warn(`⚠️ WARNING: Using mock data for ${symbol} - no valid API key found for ${provider}`);
+      console.info('📋 To get real-time forex data, please configure an API key in the settings');
       return this.getMockPrice(symbol);
     }
 
@@ -190,7 +192,8 @@ export class ForexService {
     const apiKey = this.getApiKey();
 
     if (!this.isValidApiKey(apiKey)) {
-      console.log('Using mock historical data - no valid API key found');
+      console.warn(`⚠️ WARNING: Using mock historical data for ${symbol} - no valid API key found for ${provider}`);
+      console.info('📋 Note: Historical data is primarily available with Alpha Vantage API');
       return this.getMockHistoricalData(symbol);
     }
 
@@ -243,15 +246,29 @@ export class ForexService {
   }
 
   private getMockPrice(symbol: string): ForexPrice {
-    const basePrice = symbol === 'EURUSD' ? 1.0850 : symbol === 'GBPUSD' ? 1.2650 : 0.7450;
+    // Realistic base prices for common forex pairs (as of July 2025)
+    let basePrice: number;
+    switch(symbol) {
+      case 'EURUSD': basePrice = 1.0850; break;
+      case 'GBPUSD': basePrice = 1.2650; break;
+      case 'AUDUSD': basePrice = 0.6750; break;
+      case 'USDJPY': basePrice = 154.50; break;
+      case 'USDCHF': basePrice = 0.9250; break;
+      default: basePrice = 1.0000; break;
+    }
+    
+    // Create small random variation to simulate market movement
     const randomVariation = (Math.random() - 0.5) * 0.01;
     const price = basePrice + randomVariation;
+    
+    // Typical spread for major pairs
+    const spread = symbol.includes('JPY') ? 0.020 : 0.0002;
     
     return {
       symbol,
       price,
-      bid: price - 0.0002,
-      ask: price + 0.0002,
+      bid: price - spread / 2,
+      ask: price + spread / 2,
       timestamp: new Date().toISOString(),
       change: randomVariation,
       changePercent: (randomVariation / basePrice) * 100
@@ -260,16 +277,47 @@ export class ForexService {
 
   private getMockHistoricalData(symbol: string): CandlestickData[] {
     const data: CandlestickData[] = [];
-    const basePrice = symbol === 'EURUSD' ? 1.0850 : symbol === 'GBPUSD' ? 1.2650 : 0.7450;
-    let currentPrice = basePrice;
     
+    // Realistic base prices for common forex pairs (as of July 2025)
+    let basePrice: number;
+    switch(symbol) {
+      case 'EURUSD': basePrice = 1.0850; break;
+      case 'GBPUSD': basePrice = 1.2650; break;
+      case 'AUDUSD': basePrice = 0.6750; break;
+      case 'USDJPY': basePrice = 154.50; break;
+      case 'USDCHF': basePrice = 0.9250; break;
+      default: basePrice = 1.0000; break;
+    }
+    
+    let currentPrice = basePrice;
+    let trend = Math.random() > 0.5 ? 1 : -1; // Random initial trend direction
+    let trendStrength = Math.random() * 0.8 + 0.2; // Random trend strength between 0.2 and 1.0
+    let volatility = Math.random() * 0.003 + 0.001; // Random volatility between 0.001 and 0.004
+    
+    // Generate 100 candles with somewhat realistic price movement
     for (let i = 100; i >= 0; i--) {
       const timestamp = new Date(Date.now() - i * 60000).toISOString();
-      const variation = (Math.random() - 0.5) * 0.005;
+      
+      // Occasionally change trend
+      if (i % 20 === 0) {
+        trend = Math.random() > 0.7 ? -trend : trend;
+        trendStrength = Math.random() * 0.8 + 0.2;
+        volatility = Math.random() * 0.003 + 0.001;
+      }
+      
+      // Create a somewhat realistic price movement
+      const trendMove = trend * trendStrength * (Math.random() * 0.0015);
+      const randomNoise = (Math.random() - 0.5) * volatility;
+      const totalMove = trendMove + randomNoise;
+      
+      // Generate candle data with reasonable high/low ranges
       const open = currentPrice;
-      const close = open + variation;
-      const high = Math.max(open, close) + Math.random() * 0.002;
-      const low = Math.min(open, close) - Math.random() * 0.002;
+      const close = open + totalMove;
+      const high = Math.max(open, close) + Math.random() * volatility;
+      const low = Math.min(open, close) - Math.random() * volatility;
+      
+      // Volume tends to be higher during significant price movements
+      const volume = Math.floor((500000 + Math.random() * 500000) * (1 + Math.abs(totalMove) * 100));
       
       data.push({
         timestamp,
@@ -277,12 +325,14 @@ export class ForexService {
         high,
         low,
         close,
-        volume: Math.floor(Math.random() * 1000000)
+        volume
       });
       
       currentPrice = close;
     }
     
+    // Cache the generated data for consistency
+    this.historicalCache.set(symbol, data);
     return data;
   }
 }
