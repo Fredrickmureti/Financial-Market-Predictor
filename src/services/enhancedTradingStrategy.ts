@@ -760,51 +760,299 @@ higher_tf_bullish = request.security(syminfo.tickerid, timeframe.multiply(timefr
 higher_tf_bearish = request.security(syminfo.tickerid, timeframe.multiply(timeframe.period, 4), ema50 < ema200 and close < ema50)
 trend_filter = not use_trend_filter or (higher_tf_bullish and ema12 > ema26) or (higher_tf_bearish and ema12 < ema26)
 
-// Volume Analysis
+// Advanced Volume Analysis
 vol_sma = ta.sma(volume, 10)
-high_volume = volume > vol_sma * orderblock_volume_mult
+vol_std = ta.stdev(volume, 20)
+high_volume = volume > vol_sma + vol_std
+very_high_volume = volume > vol_sma + (vol_std * 1.5)
+decreasing_volume = volume < volume[1] and volume[1] < volume[2]
+increasing_volume = volume > volume[1] and volume[1] > volume[2]
 
-// Smart Money Concepts Functions (Relaxed)
+// ===== ADVANCED SMART MONEY CONCEPTS =====
 
-// Fair Value Gap Detection
-detect_fvg() =>
-    bullish_fvg = low[1] > high and (low[1] - high) >= fvg_min_size
-    bearish_fvg = high[1] < low and (low - high[1]) >= fvg_min_size
-    fvg_bullish_price = bullish_fvg ? low[1] : na
-    fvg_bearish_price = bearish_fvg ? high[1] : na
-    [fvg_bullish_price, fvg_bearish_price, bullish_fvg, bearish_fvg]
+// 1. Enhanced Fair Value Gap Detection with Mitigation Tracking
+// FVGs represent institutional order blocks and are key SMC elements
+detect_advanced_fvg(lookback, min_size) =>
+    var bull_fvgs = array.new_float(0)  // [price, bar_idx, status]
+    var bear_fvgs = array.new_float(0)
+    
+    // Detect new FVGs
+    for i = 1 to math.min(lookback, bar_index)
+        if low[i] > high[i+1] and (low[i] - high[i+1]) >= min_size
+            array.push(bull_fvgs, low[i])       // price
+            array.push(bull_fvgs, bar_index-i)  // bar created
+            array.push(bull_fvgs, 0)            // 0=active, 1=filled
+    
+        if high[i] < low[i+1] and (low[i+1] - high[i]) >= min_size
+            array.push(bear_fvgs, high[i])      // price
+            array.push(bear_fvgs, bar_index-i)  // bar created
+            array.push(bear_fvgs, 0)            // 0=active, 1=filled
+    
+    // Check for FVG mitigation
+    if array.size(bull_fvgs) > 0
+        for i = 0 to array.size(bull_fvgs) / 3 - 1
+            idx = i * 3
+            if array.get(bull_fvgs, idx+2) == 0 and low <= array.get(bull_fvgs, idx) 
+                array.set(bull_fvgs, idx+2, 1)  // Mark as filled
+    
+    if array.size(bear_fvgs) > 0
+        for i = 0 to array.size(bear_fvgs) / 3 - 1
+            idx = i * 3
+            if array.get(bear_fvgs, idx+2) == 0 and high >= array.get(bear_fvgs, idx)
+                array.set(bear_fvgs, idx+2, 1)  // Mark as filled
+    
+    // Remove old FVGs (beyond valid time)
+    if array.size(bull_fvgs) > 0
+        i = 0
+        while i < array.size(bull_fvgs) / 3
+            idx = i * 3
+            if bar_index - array.get(bull_fvgs, idx+1) > fvg_valid_time
+                array.remove(bull_fvgs, idx)
+                array.remove(bull_fvgs, idx)
+                array.remove(bull_fvgs, idx)
+            else
+                i += 1
+    
+    if array.size(bear_fvgs) > 0
+        i = 0
+        while i < array.size(bear_fvgs) / 3
+            idx = i * 3
+            if bar_index - array.get(bear_fvgs, idx+1) > fvg_valid_time
+                array.remove(bear_fvgs, idx)
+                array.remove(bear_fvgs, idx)
+                array.remove(bear_fvgs, idx)
+            else
+                i += 1
+    
+    // Find closest active FVGs
+    float bull_fvg_price = na
+    float bear_fvg_price = na
+    float bull_fvg_distance = 999999
+    float bear_fvg_distance = 999999
+    bool recent_bull_fvg = false
+    bool recent_bear_fvg = false
+    
+    if array.size(bull_fvgs) > 0
+        for i = 0 to array.size(bull_fvgs) / 3 - 1
+            idx = i * 3
+            if array.get(bull_fvgs, idx+2) == 0  // If active
+                price_diff = math.abs(close - array.get(bull_fvgs, idx))
+                if price_diff < bull_fvg_distance
+                    bull_fvg_distance = price_diff
+                    bull_fvg_price = array.get(bull_fvgs, idx)
+                    recent_bull_fvg = bar_index - array.get(bull_fvgs, idx+1) < 5
+    
+    if array.size(bear_fvgs) > 0
+        for i = 0 to array.size(bear_fvgs) / 3 - 1
+            idx = i * 3
+            if array.get(bear_fvgs, idx+2) == 0  // If active
+                price_diff = math.abs(close - array.get(bear_fvgs, idx))
+                if price_diff < bear_fvg_distance
+                    bear_fvg_distance = price_diff
+                    bear_fvg_price = array.get(bear_fvgs, idx)
+                    recent_bear_fvg = bar_index - array.get(bear_fvgs, idx+1) < 5
+    
+    [bull_fvg_price, bear_fvg_price, recent_bull_fvg, recent_bear_fvg]
 
-[fvg_bull_price, fvg_bear_price, is_bull_fvg, is_bear_fvg] = detect_fvg()
+// 2. Premium Order Block Detection with Volume Confirmation
+// Order blocks represent strong institutional entries and represent high-probability reversal zones
+detect_premium_ob(lookback) =>
+    var ob_demand_zones = array.new_float(0)  // [high, low, strength]
+    var ob_supply_zones = array.new_float(0)  // [high, low, strength]
+    
+    // Detect new order blocks
+    for i = 1 to math.min(lookback, bar_index - 1)
+        body_size = math.abs(close[i] - open[i])
+        candle_range = high[i] - low[i]
+        body_percent = body_size / candle_range * 100
+        
+        // Premium demand OB: Strong bullish candle followed by bearish move
+        if close[i] > open[i] and body_percent >= ob_min_body_percent and 
+           volume[i] > vol_sma[i] * ob_min_volume and
+           low[i-1] < low[i]  // Preceding bearish move
+            
+            // Check if price moved away significantly after this candle
+            if low < low[i]
+                array.push(ob_demand_zones, high[i])
+                array.push(ob_demand_zones, low[i])
+                array.push(ob_demand_zones, body_percent * (volume[i] / vol_sma[i]))  // Strength metric
+        
+        // Premium supply OB: Strong bearish candle followed by bullish move
+        if close[i] < open[i] and body_percent >= ob_min_body_percent and 
+           volume[i] > vol_sma[i] * ob_min_volume and
+           high[i-1] > high[i]  // Preceding bullish move
+            
+            // Check if price moved away significantly after this candle
+            if high > high[i]
+                array.push(ob_supply_zones, high[i])
+                array.push(ob_supply_zones, low[i])
+                array.push(ob_supply_zones, body_percent * (volume[i] / vol_sma[i]))  // Strength metric
+    
+    // Determine if we're near a premium order block
+    float demand_ob_high = na
+    float demand_ob_low = na
+    float supply_ob_high = na
+    float supply_ob_low = na
+    float demand_strength = 0
+    float supply_strength = 0
+    
+    if array.size(ob_demand_zones) > 0
+        for i = 0 to array.size(ob_demand_zones) / 3 - 1
+            idx = i * 3
+            ob_high = array.get(ob_demand_zones, idx)
+            ob_low = array.get(ob_demand_zones, idx+1)
+            strength = array.get(ob_demand_zones, idx+2)
+            
+            if low <= ob_high and low >= ob_low and strength > demand_strength
+                demand_ob_high = ob_high
+                demand_ob_low = ob_low
+                demand_strength = strength
+    
+    if array.size(ob_supply_zones) > 0
+        for i = 0 to array.size(ob_supply_zones) / 3 - 1
+            idx = i * 3
+            ob_high = array.get(ob_supply_zones, idx)
+            ob_low = array.get(ob_supply_zones, idx+1)
+            strength = array.get(ob_supply_zones, idx+2)
+            
+            if high >= ob_low and high <= ob_high and strength > supply_strength
+                supply_ob_high = ob_high
+                supply_ob_low = ob_low
+                supply_strength = strength
+    
+    [demand_ob_high, demand_ob_low, supply_ob_high, supply_ob_low, demand_strength > 0, supply_strength > 0]
 
-// Order Block Detection (More Lenient)
-detect_order_block() =>
-    body_size = math.abs(close - open)
-    candle_range = high - low
-    strong_bullish = close > open and body_size > candle_range * 0.5 and high_volume
-    strong_bearish = close < open and body_size > candle_range * 0.5 and high_volume
-    ob_demand_high = strong_bullish ? high : na
-    ob_demand_low = strong_bullish ? low : na
-    ob_supply_high = strong_bearish ? high : na
-    ob_supply_low = strong_bearish ? low : na
-    [ob_demand_high, ob_demand_low, ob_supply_high, ob_supply_low, strong_bullish, strong_bearish]
+// 3. Advanced Market Structure Analysis
+// Market structure shifts are critical for identifying trends and reversals
+detect_market_structure() =>
+    // Higher timeframe structure
+    var bullish_structure = false
+    var bearish_structure = false
+    var last_swing_high = 0.0
+    var last_swing_low = 0.0
+    var higher_highs = 0
+    var higher_lows = 0
+    var lower_highs = 0
+    var lower_lows = 0
+    
+    // Detect swings using pivot points
+    swing_high = ta.pivothigh(high, ms_pivot_length, ms_pivot_length)
+    swing_low = ta.pivotlow(low, ms_pivot_length, ms_pivot_length)
+    
+    if not na(swing_high)
+        if swing_high > last_swing_high and last_swing_high > 0
+            higher_highs := higher_highs + 1
+            lower_highs := 0
+        else if swing_high < last_swing_high and last_swing_high > 0
+            lower_highs := lower_highs + 1
+            higher_highs := 0
+        last_swing_high := swing_high
+    
+    if not na(swing_low)
+        if swing_low > last_swing_low and last_swing_low > 0
+            higher_lows := higher_lows + 1
+            lower_lows := 0
+        else if swing_low < last_swing_low and last_swing_low > 0
+            lower_lows := lower_lows + 1
+            higher_lows := 0
+        last_swing_low := swing_low
+    
+    // Structure change detection
+    bullish_structure := higher_highs >= 1 and higher_lows >= 1
+    bearish_structure := lower_highs >= 1 and lower_lows >= 1
+    
+    // Breakout of structure (BOS)
+    bullish_bos = not na(swing_low) and close > last_swing_high and not bullish_structure
+    bearish_bos = not na(swing_high) and close < last_swing_low and not bearish_structure
+    
+    // Change of character (CHoCH)
+    bullish_choch = bullish_structure and not na(swing_low) and close < last_swing_low and higher_lows > 1
+    bearish_choch = bearish_structure and not na(swing_high) and close > last_swing_high and lower_highs > 1
+    
+    [bullish_structure, bearish_structure, bullish_bos, bearish_bos, bullish_choch, bearish_choch]
 
-[ob_dem_high, ob_dem_low, ob_sup_high, ob_sup_low, is_demand_ob, is_supply_ob] = detect_order_block()
+// 4. Liquidity Analysis (Institutional Stop Hunting)
+// Liquidity analysis helps identify where institutional traders might push price to trigger retail stops
+detect_liquidity_zones() =>
+    var liquidity_highs = array.new_float(0)  // [price, strength, swept]
+    var liquidity_lows = array.new_float(0)   // [price, strength, swept]
+    
+    // Detect swing point clusters that indicate liquidity
+    if not na(swing_high)
+        // Check for clustered highs (indicating stop placement)
+        high_cluster = false
+        for i = 1 to 5
+            if math.abs(high[i] - swing_high) < atr_value * 0.5
+                high_cluster := true
+        
+        if high_cluster
+            array.push(liquidity_highs, swing_high)
+            array.push(liquidity_highs, 1.0)  // Strength
+            array.push(liquidity_highs, 0.0)  // 0=not swept, 1=swept
+    
+    if not na(swing_low)
+        // Check for clustered lows (indicating stop placement)
+        low_cluster = false
+        for i = 1 to 5
+            if math.abs(low[i] - swing_low) < atr_value * 0.5
+                low_cluster := true
+        
+        if low_cluster
+            array.push(liquidity_lows, swing_low)
+            array.push(liquidity_lows, 1.0)  // Strength
+            array.push(liquidity_lows, 0.0)  // 0=not swept, 1=swept
+    
+    // Check for liquidity sweeps
+    if array.size(liquidity_highs) > 0
+        for i = 0 to array.size(liquidity_highs) / 3 - 1
+            idx = i * 3
+            liq_price = array.get(liquidity_highs, idx)
+            if high >= liq_price and array.get(liquidity_highs, idx+2) == 0
+                array.set(liquidity_highs, idx+2, 1.0)  // Mark as swept
+    
+    if array.size(liquidity_lows) > 0
+        for i = 0 to array.size(liquidity_lows) / 3 - 1
+            idx = i * 3
+            liq_price = array.get(liquidity_lows, idx)
+            if low <= liq_price and array.get(liquidity_lows, idx+2) == 0
+                array.set(liquidity_lows, idx+2, 1.0)  // Mark as swept
+    
+    // Look for recent liquidity sweeps followed by rejection
+    recent_high_sweep = false
+    recent_low_sweep = false
+    
+    if array.size(liquidity_highs) > 0
+        for i = 0 to array.size(liquidity_highs) / 3 - 1
+            idx = i * 3
+            if array.get(liquidity_highs, idx+2) == 1.0  // If swept
+                sweep_bar = bar_index - array.get(liquidity_highs, idx+1)
+                if sweep_bar <= 3 and close < array.get(liquidity_highs, idx)
+                    recent_high_sweep := true
+    
+    if array.size(liquidity_lows) > 0
+        for i = 0 to array.size(liquidity_lows) / 3 - 1
+            idx = i * 3
+            if array.get(liquidity_lows, idx+2) == 1.0  // If swept
+                sweep_bar = bar_index - array.get(liquidity_lows, idx+1)
+                if sweep_bar <= 3 and close > array.get(liquidity_lows, idx)
+                    recent_low_sweep := true
+    
+    [recent_high_sweep, recent_low_sweep]
 
-// Liquidity Zones (Shorter lookback)
-swing_length = 3
-swing_high = ta.pivothigh(high, swing_length, swing_length)
-swing_low = ta.pivotlow(low, swing_length, swing_length)
+// Call the detection functions
+[bull_fvg_price, bear_fvg_price, recent_bull_fvg, recent_bear_fvg] = detect_advanced_fvg(fvg_lookback, fvg_min_size)
+[demand_ob_high, demand_ob_low, supply_ob_high, supply_ob_low, near_demand_ob, near_supply_ob] = detect_premium_ob(ob_lookback)
+[bullish_structure, bearish_structure, bullish_bos, bearish_bos, bullish_choch, bearish_choch] = detect_market_structure()
+[recent_high_sweep, recent_low_sweep] = detect_liquidity_zones()
 
-// Market Structure Analysis
-higher_high = high > high[1]
-lower_low = low < low[1]
-bullish_structure = ta.rising(close, 2)
-bearish_structure = ta.falling(close, 2)
-
-// Smart Money Bias (Optional)
-smart_money_bullish = bullish_structure and ema12 > ema26
-smart_money_bearish = bearish_structure and ema12 < ema26
+// Smart Money Bias Calculation
+smart_money_bullish = bullish_structure and (ema12 > ema26 or bullish_bos) and (not na(bull_fvg_price) or near_demand_ob)
+smart_money_bearish = bearish_structure and (ema12 < ema26 or bearish_bos) and (not na(bear_fvg_price) or near_supply_ob)
 smart_money_bias = smart_money_bullish ? 1 : smart_money_bearish ? -1 : 0
+
+// Near critical levels detection 
+near_bull_fvg = not na(bull_fvg_price) and close >= bull_fvg_price * 0.999 and close <= bull_fvg_price * 1.001
+near_bear_fvg = not na(bear_fvg_price) and close <= bear_fvg_price * 1.001 and close >= bear_fvg_price * 0.999
 
 // Enhanced Confluence Analysis (More Balanced)
 confluence_score = 0
