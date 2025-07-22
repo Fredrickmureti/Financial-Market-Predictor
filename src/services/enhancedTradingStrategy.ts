@@ -1054,92 +1054,179 @@ smart_money_bias = smart_money_bullish ? 1 : smart_money_bearish ? -1 : 0
 near_bull_fvg = not na(bull_fvg_price) and close >= bull_fvg_price * 0.999 and close <= bull_fvg_price * 1.001
 near_bear_fvg = not na(bear_fvg_price) and close <= bear_fvg_price * 1.001 and close >= bear_fvg_price * 0.999
 
-// Enhanced Confluence Analysis (More Balanced)
-confluence_score = 0
-bullish_signals = 0
-bearish_signals = 0
-signal_reasons = ""
+// ===== ADVANCED SIGNAL GENERATION SYSTEM =====
 
-// Traditional Technical Analysis (Higher Weight)
-if rsi < 30
+// Professional signal generation with precise reasons
+var confluence_score = 0
+var bullish_signals = 0
+var bearish_signals = 0
+var signal_reasons = ""
+var signal_quality = 0.0
+
+// Initialize counters
+confluence_score := 0
+bullish_signals := 0
+bearish_signals := 0
+signal_reasons := ""
+
+// --- SMART MONEY CONCEPTS (HIGHEST WEIGHT) ---
+
+// 1. Fair Value Gap Entries (Premium Institutional Entry Points)
+if near_bull_fvg and recent_bull_fvg
+    bullish_signals := bullish_signals + 6
+    confluence_score := confluence_score + 6
+    signal_reasons := signal_reasons + "Fresh Bull FVG | "
+    signal_quality := signal_quality + 0.6
+else if near_bull_fvg
     bullish_signals := bullish_signals + 4
     confluence_score := confluence_score + 4
-    signal_reasons := signal_reasons + "RSI Oversold | "
-else if rsi < 40
+    signal_reasons := signal_reasons + "Bull FVG | "
+    signal_quality := signal_quality + 0.4
+
+if near_bear_fvg and recent_bear_fvg
+    bearish_signals := bearish_signals + 6
+    confluence_score := confluence_score + 6
+    signal_reasons := signal_reasons + "Fresh Bear FVG | "
+    signal_quality := signal_quality + 0.6
+else if near_bear_fvg
+    bearish_signals := bearish_signals + 4
+    confluence_score := confluence_score + 4
+    signal_reasons := signal_reasons + "Bear FVG | "
+    signal_quality := signal_quality + 0.4
+
+// 2. Premium Order Block Entries
+if near_demand_ob and demand_ob_low <= close and close <= demand_ob_high
+    bullish_signals := bullish_signals + 5
+    confluence_score := confluence_score + 5
+    signal_reasons := signal_reasons + "Premium Demand OB | "
+    signal_quality := signal_quality + 0.5
+
+if near_supply_ob and supply_ob_low <= close and close <= supply_ob_high
+    bearish_signals := bearish_signals + 5
+    confluence_score := confluence_score + 5
+    signal_reasons := signal_reasons + "Premium Supply OB | "
+    signal_quality := signal_quality + 0.5
+
+// 3. Liquidity Sweeps (Stop Hunting)
+if recent_low_sweep
+    bullish_signals := bullish_signals + 4
+    confluence_score := confluence_score + 4
+    signal_reasons := signal_reasons + "Liquidity Swept Low | "
+    signal_quality := signal_quality + 0.5
+
+if recent_high_sweep
+    bearish_signals := bearish_signals + 4
+    confluence_score := confluence_score + 4
+    signal_reasons := signal_reasons + "Liquidity Swept High | "
+    signal_quality := signal_quality + 0.5
+
+// 4. Market Structure - Critical for Smart Money Analysis
+if bullish_structure
+    bullish_signals := bullish_signals + 3
+    confluence_score := confluence_score + 3
+    signal_reasons := signal_reasons + "Bullish Structure | "
+    signal_quality := signal_quality + 0.2
+
+if bullish_bos and confirm_bos
+    bullish_signals := bullish_signals + 5
+    confluence_score := confluence_score + 5
+    signal_reasons := signal_reasons + "Bullish BOS | "
+    signal_quality := signal_quality + 0.5
+
+if bullish_choch
+    bearish_signals := bearish_signals + 4  // Contrarian signal
+    confluence_score := confluence_score + 4
+    signal_reasons := signal_reasons + "Bullish CHoCH | "
+    signal_quality := signal_quality + 0.4
+
+if bearish_structure
+    bearish_signals := bearish_signals + 3
+    confluence_score := confluence_score + 3
+    signal_reasons := signal_reasons + "Bearish Structure | "
+    signal_quality := signal_quality + 0.2
+
+if bearish_bos and confirm_bos
+    bearish_signals := bearish_signals + 5
+    confluence_score := confluence_score + 5
+    signal_reasons := signal_reasons + "Bearish BOS | "
+    signal_quality := signal_quality + 0.5
+
+if bearish_choch
+    bullish_signals := bullish_signals + 4  // Contrarian signal
+    confluence_score := confluence_score + 4
+    signal_reasons := signal_reasons + "Bearish CHoCH | "
+    signal_quality := signal_quality + 0.4
+
+// --- TECHNICAL INDICATORS (MEDIUM WEIGHT) ---
+
+// 1. RSI - Momentum Indicator
+if rsi < 25
+    bullish_signals := bullish_signals + 3
+    confluence_score := confluence_score + 3
+    signal_reasons := signal_reasons + "Strong RSI Oversold | "
+    signal_quality := signal_quality + 0.3
+else if rsi < 35
     bullish_signals := bullish_signals + 2
     confluence_score := confluence_score + 2
     signal_reasons := signal_reasons + "RSI Bullish | "
+    signal_quality := signal_quality + 0.1
 
-if rsi > 70
-    bearish_signals := bearish_signals + 4
-    confluence_score := confluence_score + 4
-    signal_reasons := signal_reasons + "RSI Overbought | "
-else if rsi > 60
+if rsi > 75
+    bearish_signals := bearish_signals + 3
+    confluence_score := confluence_score + 3
+    signal_reasons := signal_reasons + "Strong RSI Overbought | "
+    signal_quality := signal_quality + 0.3
+else if rsi > 65
     bearish_signals := bearish_signals + 2
     confluence_score := confluence_score + 2
     signal_reasons := signal_reasons + "RSI Bearish | "
+    signal_quality := signal_quality + 0.1
 
-// MACD Signals (Higher Weight)
-if ta.crossover(macd_hist, 0)
-    bullish_signals := bullish_signals + 5
-    confluence_score := confluence_score + 5
+// 2. MACD - Trend Momentum
+if ta.crossover(macd_line, signal_line)
+    bullish_signals := bullish_signals + 3
+    confluence_score := confluence_score + 3
     signal_reasons := signal_reasons + "MACD Bull Cross | "
-else if macd_hist > 0
+    signal_quality := signal_quality + 0.2
+else if macd_line > signal_line and macd_hist > 0 and macd_hist > macd_hist[1]
     bullish_signals := bullish_signals + 2
     confluence_score := confluence_score + 2
-    signal_reasons := signal_reasons + "MACD Above Zero | "
+    signal_reasons := signal_reasons + "MACD Bullish | "
+    signal_quality := signal_quality + 0.1
 
-if ta.crossunder(macd_hist, 0)
-    bearish_signals := bearish_signals + 5
-    confluence_score := confluence_score + 5
+if ta.crossunder(macd_line, signal_line)
+    bearish_signals := bearish_signals + 3
+    confluence_score := confluence_score + 3
     signal_reasons := signal_reasons + "MACD Bear Cross | "
-else if macd_hist < 0
+    signal_quality := signal_quality + 0.2
+else if macd_line < signal_line and macd_hist < 0 and macd_hist < macd_hist[1]
     bearish_signals := bearish_signals + 2
     confluence_score := confluence_score + 2
-    signal_reasons := signal_reasons + "MACD Below Zero | "
+    signal_reasons := signal_reasons + "MACD Bearish | "
+    signal_quality := signal_quality + 0.1
 
-// EMA Trend
-if ema12 > ema26 and close > ema12
-    bullish_signals := bullish_signals + 3
-    confluence_score := confluence_score + 3
-    signal_reasons := signal_reasons + "Bull EMA Trend | "
-
-if ema12 < ema26 and close < ema12
-    bearish_signals := bearish_signals + 3
-    confluence_score := confluence_score + 3
-    signal_reasons := signal_reasons + "Bear EMA Trend | "
-
-// Smart Money Concepts (Reduced Weight)
-near_bull_fvg = is_bull_fvg and close >= fvg_bull_price * 0.998 and close <= fvg_bull_price * 1.002
-near_bear_fvg = is_bear_fvg and close <= fvg_bear_price * 1.002 and close >= fvg_bear_price * 0.998
-
-if near_bull_fvg
-    bullish_signals := bullish_signals + 3
-    confluence_score := confluence_score + 3
-    signal_reasons := signal_reasons + "Near Bull FVG | "
-
-if near_bear_fvg
-    bearish_signals := bearish_signals + 3
-    confluence_score := confluence_score + 3
-    signal_reasons := signal_reasons + "Near Bear FVG | "
-
-// Order Block Signals
-near_demand = is_demand_ob and close >= ob_dem_low * 0.998 and close <= ob_dem_high * 1.002
-near_supply = is_supply_ob and close >= ob_sup_low * 0.998 and close <= ob_sup_high * 1.002
-
-if near_demand
-    bullish_signals := bullish_signals + 3
-    confluence_score := confluence_score + 3
-    signal_reasons := signal_reasons + "Near Demand OB | "
-
-if near_supply
-    bearish_signals := bearish_signals + 3
-    confluence_score := confluence_score + 3
-    signal_reasons := signal_reasons + "Near Supply OB | "
-
-// Market Structure
-if bullish_structure
+// 3. EMA Analysis - Trend Direction
+if ema12 > ema26 and ema26 > ema50 and close > ema12
+    bullish_signals := bullish_signals + 4
+    confluence_score := confluence_score + 4
+    signal_reasons := signal_reasons + "Strong Bull Trend | "
+    signal_quality := signal_quality + 0.3
+else if ema12 > ema26 and close > ema12
     bullish_signals := bullish_signals + 2
+    confluence_score := confluence_score + 2
+    signal_reasons := signal_reasons + "Bull Trend | "
+    signal_quality := signal_quality + 0.1
+
+if ema12 < ema26 and ema26 < ema50 and close < ema12
+    bearish_signals := bearish_signals + 4
+    confluence_score := confluence_score + 4
+    signal_reasons := signal_reasons + "Strong Bear Trend | "
+    signal_quality := signal_quality + 0.3
+else if ema12 < ema26 and close < ema12
+    bearish_signals := bearish_signals + 2
+    confluence_score := confluence_score + 2
+    signal_reasons := signal_reasons + "Bear Trend | "
+    signal_quality := signal_quality + 0.1
     confluence_score := confluence_score + 2
     signal_reasons := signal_reasons + "Bull Structure | "
 
@@ -1161,118 +1248,254 @@ else
     confluence_score := confluence_score - 1
     signal_reasons := signal_reasons + "Inactive Session | "
 
-// Calculate Confidence (More Balanced)
+// --- ADDITIONAL FILTERS & QUALITY FACTORS (LOW WEIGHT) ---
+
+// 1. Volume Analysis (High volume confirms moves)
+if very_high_volume and increasing_volume
+    confluence_score := confluence_score + 3
+    signal_reasons := signal_reasons + "Very High Vol | "
+    signal_quality := signal_quality + 0.2
+else if high_volume
+    confluence_score := confluence_score + 2
+    signal_reasons := signal_reasons + "High Vol | "
+    signal_quality := signal_quality + 0.1
+
+// 2. Session Quality
+if high_quality_time
+    confluence_score := confluence_score + 3
+    signal_reasons := signal_reasons + "Premium Session | "
+    signal_quality := signal_quality + 0.2
+else if session_filter
+    confluence_score := confluence_score + 1
+    signal_reasons := signal_reasons + "Good Session | "
+    signal_quality := signal_quality + 0.1
+else
+    signal_quality := signal_quality - 0.2
+
+// 3. Filters Application
+if not trend_filter
+    signal_quality := signal_quality - 0.2
+    confluence_score := math.max(confluence_score - 2, 0)
+
+if not volatility_filter
+    signal_quality := signal_quality - 0.1
+    confluence_score := math.max(confluence_score - 1, 0)
+
+// Calculate Advanced Confidence Score
 total_signals = bullish_signals + bearish_signals
 raw_confidence = total_signals > 0 ? (math.max(bullish_signals, bearish_signals) / total_signals) * 100 : 50
-confluence_boost = math.min(confluence_score * 2, 25)
-final_confidence = math.min(raw_confidence + confluence_boost, 95)
+confidence_boost = math.min(confluence_score * 1.5, 30)
+final_confidence = math.min(math.max(raw_confidence + confidence_boost, 50), 95)
 
-// Ensure minimum confidence for any signal
-if confluence_score >= 5
-    final_confidence := math.max(final_confidence, 60)
+// Filter by quality if noise reduction is enabled
+if reduce_noise and signal_quality < 0.7
+    final_confidence := final_confidence * 0.8
+    confluence_score := math.max(confluence_score - 2, 0)
 
-// Signal Determination (More Lenient)
+// Signal Strength Classification
 signal_strength = math.abs(bullish_signals - bearish_signals)
-is_very_strong = confluence_score >= 12 and signal_strength >= 6 and final_confidence >= 85
-is_strong = confluence_score >= 8 and signal_strength >= 4 and final_confidence >= 75
+is_elite = confluence_score >= 15 and signal_strength >= 8 and final_confidence >= 88 and signal_quality >= 1.2
+is_very_strong = confluence_score >= 12 and signal_strength >= 6 and final_confidence >= 82 and signal_quality >= 1.0
+is_strong = confluence_score >= 8 and signal_strength >= 4 and final_confidence >= 75 and signal_quality >= 0.8
 
-// Entry Conditions (More Lenient)
-long_condition = session_filter and bullish_signals > bearish_signals and final_confidence >= min_confidence and confluence_score >= min_confluence and (not use_smart_money_bias or smart_money_bias >= 0)
-short_condition = session_filter and bearish_signals > bullish_signals and final_confidence >= min_confidence and confluence_score >= min_confluence and (not use_smart_money_bias or smart_money_bias <= 0)
+// Risk management calculation - Dynamic ATR
+risk_multiplier = is_elite ? 0.8 : is_very_strong ? 0.9 : atr_sl_mult
+reward_multiplier = is_elite ? 3.0 : is_very_strong ? 2.7 : is_strong ? 2.4 : atr_tp_mult
 
-// Enhanced Stop Loss and Take Profit Logic
-long_sl = strategy.position_size > 0 ? (not na(ob_dem_low) and close > ob_dem_low ? ob_dem_low - atr_value * 0.3 : close - atr_value * atr_sl_mult) : na
-short_sl = strategy.position_size < 0 ? (not na(ob_sup_high) and close < ob_sup_high ? ob_sup_high + atr_value * 0.3 : close + atr_value * atr_sl_mult) : na
+// Apply trade count management (avoid overtrading)
+var int trades_today = 0
+if dayofweek != dayofweek[1]
+    trades_today := 0
 
-// Take Profit
-tp_multiplier = is_very_strong ? 2.5 : is_strong ? 2.0 : atr_tp_mult
-long_tp = strategy.position_size > 0 ? close + atr_value * tp_multiplier : na
-short_tp = strategy.position_size < 0 ? close - atr_value * tp_multiplier : na
+// Entry Conditions
+primary_filters = session_filter and trend_filter and volatility_filter and trades_today < max_trades_per_day
+risk_reward_check = reward_multiplier / risk_multiplier >= risk_reward_min
 
-// Plot Smart Money Levels
-plot(fvg_bull_price, color=color.new(color.green, 70), style=plot.style_linebr, linewidth=2, title="Bullish FVG")
-plot(fvg_bear_price, color=color.new(color.red, 70), style=plot.style_linebr, linewidth=2, title="Bearish FVG")
+long_condition = primary_filters and bullish_signals > bearish_signals and final_confidence >= min_confidence and 
+                 confluence_score >= min_confluence and risk_reward_check and 
+                 (not use_smart_money_concepts or smart_money_bias >= 0)
 
-plotshape(is_demand_ob, title="Demand OB", location=location.belowbar, color=color.new(color.blue, 30), style=shape.square, size=size.small)
-plotshape(is_supply_ob, title="Supply OB", location=location.abovebar, color=color.new(color.orange, 30), style=shape.square, size=size.small)
+short_condition = primary_filters and bearish_signals > bullish_signals and final_confidence >= min_confidence and 
+                  confluence_score >= min_confluence and risk_reward_check and 
+                  (not use_smart_money_concepts or smart_money_bias <= 0)
 
-plotshape(swing_high, title="Sell Liquidity", location=location.abovebar, color=color.new(color.red, 50), style=shape.triangledown, size=size.tiny)
-plotshape(swing_low, title="Buy Liquidity", location=location.belowbar, color=color.new(color.green, 50), style=shape.triangleup, size=size.tiny)
+// Institutional Smart Money Stop Loss Placement
+// For bulls, SL is below demand OB or recent swing low, never just fixed ATR
+long_sl = close - atr_value * risk_multiplier
+if not na(demand_ob_low) and near_demand_ob
+    long_sl := math.min(demand_ob_low - atr_value * 0.2, long_sl)
+if not na(swing_low) and swing_low < close
+    long_sl := math.min(swing_low - atr_value * 0.1, long_sl)
 
-// Enhanced Signal Plots
-plotshape(long_condition and is_very_strong, title="VERY STRONG BUY", location=location.belowbar, color=color.lime, style=shape.labelup, text="💎 BUY", textcolor=color.white, size=size.large)
-plotshape(long_condition and is_strong and not is_very_strong, title="STRONG BUY", location=location.belowbar, color=color.green, style=shape.labelup, text="🔥 BUY", textcolor=color.white, size=size.normal)
-plotshape(long_condition and not is_strong, title="BUY", location=location.belowbar, color=color.new(color.green, 30), style=shape.labelup, text="BUY", textcolor=color.white, size=size.small)
+// For bears, SL is above supply OB or recent swing high, never just fixed ATR
+short_sl = close + atr_value * risk_multiplier
+if not na(supply_ob_high) and near_supply_ob
+    short_sl := math.max(supply_ob_high + atr_value * 0.2, short_sl)
+if not na(swing_high) and swing_high > close
+    short_sl := math.max(swing_high + atr_value * 0.1, short_sl)
 
-plotshape(short_condition and is_very_strong, title="VERY STRONG SELL", location=location.abovebar, color=color.maroon, style=shape.labeldown, text="💎 SELL", textcolor=color.white, size=size.large)
-plotshape(short_condition and is_strong and not is_very_strong, title="STRONG SELL", location=location.abovebar, color=color.red, style=shape.labeldown, text="🔥 SELL", textcolor=color.white, size=size.normal)
-plotshape(short_condition and not is_strong, title="SELL", location=location.abovebar, color=color.new(color.red, 30), style=shape.labeldown, text="SELL", textcolor=color.white, size=size.small)
+// Smart Take Profit Placement
+// For bulls, target the nearest bear FVG, liquidity level, or ATR multiple
+long_tp = close + atr_value * reward_multiplier
+if not na(bear_fvg_price) and bear_fvg_price > close
+    long_tp := math.min(bear_fvg_price, long_tp)
+else 
+    // Look for resistance or liquidity zone
+    if array.size(liquidity_highs) > 0
+        for i = 0 to math.min(array.size(liquidity_highs) / 3 - 1, 2)
+            idx = i * 3
+            liq_price = array.get(liquidity_highs, idx)
+            if liq_price > close
+                long_tp := math.min(liq_price, long_tp)
 
-// Strategy Execution
+// For bears, target the nearest bull FVG, liquidity level, or ATR multiple
+short_tp = close - atr_value * reward_multiplier
+if not na(bull_fvg_price) and bull_fvg_price < close
+    short_tp := math.max(bull_fvg_price, short_tp)
+else
+    // Look for support or liquidity zone
+    if array.size(liquidity_lows) > 0
+        for i = 0 to math.min(array.size(liquidity_lows) / 3 - 1, 2)
+            idx = i * 3
+            liq_price = array.get(liquidity_lows, idx)
+            if liq_price < close
+                short_tp := math.max(liq_price, short_tp)
+
+// Visualization of Premium Smart Money Concepts
+// Fair Value Gaps
+plot(bull_fvg_price, title="Bull FVG", color=color.new(color.lime, 60), style=plot.style_circles, linewidth=2)
+plot(bear_fvg_price, title="Bear FVG", color=color.new(color.maroon, 60), style=plot.style_circles, linewidth=2)
+
+// Order Blocks
+plotbox(near_demand_ob and not na(demand_ob_high) and not na(demand_ob_low), demand_ob_high, demand_ob_low, 
+       extend.right, color.new(color.blue, 80), bgcolor=color.new(color.blue, 90))
+plotbox(near_supply_ob and not na(supply_ob_high) and not na(supply_ob_low), supply_ob_high, supply_ob_low, 
+       extend.right, color.new(color.red, 80), bgcolor=color.new(color.red, 90))
+
+// Liquidity Zones
+plotshape(not na(swing_high), title="Sell Liquidity", location=location.abovebar, color=color.new(color.red, 40), 
+         style=shape.triangledown, size=size.tiny)
+plotshape(not na(swing_low), title="Buy Liquidity", location=location.belowbar, color=color.new(color.green, 40), 
+         style=shape.triangleup, size=size.tiny)
+
+// Market Structure Breaks
+plotshape(bullish_bos, title="Bullish BOS", location=location.belowbar, color=color.new(color.green, 0), 
+         style=shape.triangleup, size=size.small)
+plotshape(bearish_bos, title="Bearish BOS", location=location.abovebar, color=color.new(color.red, 0), 
+         style=shape.triangledown, size=size.small)
+
+// Enhanced Signal Visualization
+plotshape(long_condition and is_elite, title="ELITE BUY", location=location.belowbar, color=color.new(color.lime, 0), 
+         style=shape.labelup, text="⭐ ELITE BUY", textcolor=color.white, size=size.large)
+plotshape(long_condition and is_very_strong and not is_elite, title="PREMIUM BUY", location=location.belowbar, 
+         color=color.new(color.green, 0), style=shape.labelup, text="💎 BUY", textcolor=color.white, size=size.large)
+plotshape(long_condition and is_strong and not is_very_strong, title="STRONG BUY", location=location.belowbar, 
+         color=color.new(color.green, 20), style=shape.labelup, text="🔥 BUY", textcolor=color.white, size=size.normal)
+plotshape(long_condition and not is_strong, title="BUY", location=location.belowbar, 
+         color=color.new(color.green, 40), style=shape.labelup, text="BUY", textcolor=color.white, size=size.small)
+
+plotshape(short_condition and is_elite, title="ELITE SELL", location=location.abovebar, color=color.new(color.purple, 0), 
+         style=shape.labeldown, text="⭐ ELITE SELL", textcolor=color.white, size=size.large)
+plotshape(short_condition and is_very_strong and not is_elite, title="PREMIUM SELL", location=location.abovebar, 
+         color=color.new(color.maroon, 0), style=shape.labeldown, text="💎 SELL", textcolor=color.white, size=size.large)
+plotshape(short_condition and is_strong and not is_very_strong, title="STRONG SELL", location=location.abovebar, 
+         color=color.new(color.red, 20), style=shape.labeldown, text="🔥 SELL", textcolor=color.white, size=size.normal)
+plotshape(short_condition and not is_strong, title="SELL", location=location.abovebar, 
+         color=color.new(color.red, 40), style=shape.labeldown, text="SELL", textcolor=color.white, size=size.small)
+
+// Strategy Execution with Risk Management
 if long_condition
-    strategy.entry("Long", strategy.long, comment="Balanced Long: " + str.tostring(final_confidence, "#.#") + "% | Score: " + str.tostring(confluence_score))
-    strategy.exit("Long Exit", "Long", stop=long_sl, limit=long_tp, comment="Long Exit")
+    strategy.entry("Long", strategy.long, comment="Smart Long: " + str.tostring(final_confidence, "#.#") + "% | Q: " + 
+                  str.tostring(signal_quality, "#.#"))
+    strategy.exit("Long TP/SL", "Long", stop=long_sl, limit=long_tp)
+    trades_today := trades_today + 1
 
 if short_condition
-    strategy.entry("Short", strategy.short, comment="Balanced Short: " + str.tostring(final_confidence, "#.#") + "% | Score: " + str.tostring(confluence_score))
-    strategy.exit("Short Exit", "Short", stop=short_sl, limit=short_tp, comment="Short Exit")
+    strategy.entry("Short", strategy.short, comment="Smart Short: " + str.tostring(final_confidence, "#.#") + "% | Q: " + 
+                  str.tostring(signal_quality, "#.#"))
+    strategy.exit("Short TP/SL", "Short", stop=short_sl, limit=short_tp)
+    trades_today := trades_today + 1
 
-// Enhanced Information Table
+// Advanced Analytics Dashboard
 if barstate.islast
-    var table info_table = table.new(position.top_right, 3, 12, bgcolor=color.white, border_width=1)
+    var table analytics = table.new(position.top_right, 3, 14, bgcolor=color.new(color.gray, 95), border_width=1, border_color=color.new(color.gray, 50))
     
-    table.cell(info_table, 0, 0, "Balanced Strategy", text_color=color.black, bgcolor=color.gray, text_size=size.normal)
-    table.cell(info_table, 1, 0, "Value", text_color=color.black, bgcolor=color.gray, text_size=size.normal)
-    table.cell(info_table, 2, 0, "Status", text_color=color.black, bgcolor=color.gray, text_size=size.normal)
+    table.cell(analytics, 0, 0, "Smart Money Strategy", text_color=color.white, bgcolor=color.new(color.blue, 10), text_size=size.normal)
+    table.cell(analytics, 1, 0, "Value", text_color=color.white, bgcolor=color.new(color.blue, 10), text_size=size.normal)
+    table.cell(analytics, 2, 0, "Status", text_color=color.white, bgcolor=color.new(color.blue, 10), text_size=size.normal)
     
-    table.cell(info_table, 0, 1, "Confidence", text_color=color.black, text_size=size.small)
-    table.cell(info_table, 1, 1, str.tostring(final_confidence, "#.#") + "%", text_color=color.black, text_size=size.small)
-    table.cell(info_table, 2, 1, final_confidence >= min_confidence ? "✅" : "❌", text_color=color.black, text_size=size.small)
+    table.cell(analytics, 0, 1, "Confidence", text_color=color.white, text_size=size.small)
+    table.cell(analytics, 1, 1, str.tostring(final_confidence, "#.#") + "%", text_color=color.white, text_size=size.small)
+    table.cell(analytics, 2, 1, final_confidence >= min_confidence ? "✅" : "❌", text_color=color.white, text_size=size.small)
     
-    table.cell(info_table, 0, 2, "Confluence", text_color=color.black, text_size=size.small)
-    table.cell(info_table, 1, 2, str.tostring(confluence_score), text_color=color.black, text_size=size.small)
-    table.cell(info_table, 2, 2, confluence_score >= min_confluence ? "✅" : "❌", text_color=color.black, text_size=size.small)
+    table.cell(analytics, 0, 2, "Confluence", text_color=color.white, text_size=size.small)
+    table.cell(analytics, 1, 2, str.tostring(confluence_score), text_color=color.white, text_size=size.small)
+    table.cell(analytics, 2, 2, confluence_score >= min_confluence ? "✅" : "❌", text_color=color.white, text_size=size.small)
     
-    table.cell(info_table, 0, 3, "Bullish Signals", text_color=color.black, text_size=size.small)
-    table.cell(info_table, 1, 3, str.tostring(bullish_signals), text_color=color.black, text_size=size.small)
-    table.cell(info_table, 2, 3, bullish_signals > bearish_signals ? "🟢" : "⚪", text_color=color.black, text_size=size.small)
+    table.cell(analytics, 0, 3, "Signal Quality", text_color=color.white, text_size=size.small)
+    table.cell(analytics, 1, 3, str.tostring(signal_quality, "#.##"), text_color=color.white, text_size=size.small)
+    table.cell(analytics, 2, 3, signal_quality >= 0.8 ? "✅" : signal_quality >= 0.6 ? "⚠️" : "❌", text_color=color.white, text_size=size.small)
     
-    table.cell(info_table, 0, 4, "Bearish Signals", text_color=color.black, text_size=size.small)
-    table.cell(info_table, 1, 4, str.tostring(bearish_signals), text_color=color.black, text_size=size.small)
-    table.cell(info_table, 2, 4, bearish_signals > bullish_signals ? "🔴" : "⚪", text_color=color.black, text_size=size.small)
+    table.cell(analytics, 0, 4, "Bullish Signals", text_color=color.white, text_size=size.small)
+    table.cell(analytics, 1, 4, str.tostring(bullish_signals), text_color=color.white, text_size=size.small)
+    table.cell(analytics, 2, 4, bullish_signals > bearish_signals ? "🟢" : "⚪", text_color=color.white, text_size=size.small)
     
-    table.cell(info_table, 0, 5, "Smart Money Bias", text_color=color.black, text_size=size.small)
-    table.cell(info_table, 1, 5, smart_money_bias > 0 ? "Bullish" : smart_money_bias < 0 ? "Bearish" : "Neutral", text_color=color.black, text_size=size.small)
-    table.cell(info_table, 2, 5, smart_money_bias > 0 ? "🟢" : smart_money_bias < 0 ? "🔴" : "⚪", text_color=color.black, text_size=size.small)
+    table.cell(analytics, 0, 5, "Bearish Signals", text_color=color.white, text_size=size.small)
+    table.cell(analytics, 1, 5, str.tostring(bearish_signals), text_color=color.white, text_size=size.small)
+    table.cell(analytics, 2, 5, bearish_signals > bullish_signals ? "🔴" : "⚪", text_color=color.white, text_size=size.small)
     
-    table.cell(info_table, 0, 6, "Session", text_color=color.black, text_size=size.small)
-    table.cell(info_table, 1, 6, session_filter ? "Active" : "Inactive", text_color=color.black, text_size=size.small)
-    table.cell(info_table, 2, 6, session_filter ? "🟢" : "🔴", text_color=color.black, text_size=size.small)
+    table.cell(analytics, 0, 6, "Smart Money", text_color=color.white, text_size=size.small)
+    table.cell(analytics, 1, 6, smart_money_bias > 0 ? "Bullish" : smart_money_bias < 0 ? "Bearish" : "Neutral", text_color=color.white, text_size=size.small)
+    table.cell(analytics, 2, 6, smart_money_bias > 0 ? "🟢" : smart_money_bias < 0 ? "🔴" : "⚪", text_color=color.white, text_size=size.small)
     
-    table.cell(info_table, 0, 7, "Volume", text_color=color.black, text_size=size.small)
-    table.cell(info_table, 1, 7, high_volume ? "High" : "Normal", text_color=color.black, text_size=size.small)
-    table.cell(info_table, 2, 7, high_volume ? "🟢" : "⚪", text_color=color.black, text_size=size.small)
+    table.cell(analytics, 0, 7, "Market Structure", text_color=color.white, text_size=size.small)
+    ms_status = bullish_structure ? "Bullish" : bearish_structure ? "Bearish" : "Neutral"
+    ms_icon = bullish_structure ? "🟢" : bearish_structure ? "🔴" : "⚪"
+    if bullish_bos
+        ms_status := "Bullish BOS"
+        ms_icon := "🔼"
+    if bearish_bos
+        ms_status := "Bearish BOS"
+        ms_icon := "🔽"
+    table.cell(analytics, 1, 7, ms_status, text_color=color.white, text_size=size.small)
+    table.cell(analytics, 2, 7, ms_icon, text_color=color.white, text_size=size.small)
     
-    table.cell(info_table, 0, 8, "RSI", text_color=color.black, text_size=size.small)
-    table.cell(info_table, 1, 8, str.tostring(rsi, "#.#"), text_color=color.black, text_size=size.small)
-    table.cell(info_table, 2, 8, rsi < 30 ? "🟢" : rsi > 70 ? "🔴" : "⚪", text_color=color.black, text_size=size.small)
+    table.cell(analytics, 0, 8, "Session", text_color=color.white, text_size=size.small)
+    session_status = high_quality_time ? "Premium" : session_filter ? "Active" : "Inactive"
+    table.cell(analytics, 1, 8, session_status, text_color=color.white, text_size=size.small)
+    table.cell(analytics, 2, 8, high_quality_time ? "⭐" : session_filter ? "✅" : "❌", text_color=color.white, text_size=size.small)
     
-    table.cell(info_table, 0, 9, "ATR", text_color=color.black, text_size=size.small)
-    table.cell(info_table, 1, 9, str.tostring(atr_value, "#.####"), text_color=color.black, text_size=size.small)
-    table.cell(info_table, 2, 9, "📊", text_color=color.black, text_size=size.small)
+    table.cell(analytics, 0, 9, "Volatility", text_color=color.white, text_size=size.small)
+    vol_status = high_volatility ? "High" : low_volatility ? "Low" : "Normal"
+    table.cell(analytics, 1, 9, vol_status, text_color=color.white, text_size=size.small)
+    table.cell(analytics, 2, 9, high_volatility ? "⚠️" : volatility_filter ? "✅" : "❌", text_color=color.white, text_size=size.small)
     
-    table.cell(info_table, 0, 10, "Signal Strength", text_color=color.black, text_size=size.small)
-    table.cell(info_table, 1, 10, is_very_strong ? "Very Strong" : is_strong ? "Strong" : "Weak", text_color=color.black, text_size=size.small)
-    table.cell(info_table, 2, 10, is_very_strong ? "💎" : is_strong ? "🔥" : "⚪", text_color=color.black, text_size=size.small)
+    table.cell(analytics, 0, 10, "Risk:Reward", text_color=color.white, text_size=size.small)
+    rr_ratio = reward_multiplier / risk_multiplier
+    table.cell(analytics, 1, 10, str.tostring(rr_ratio, "#.#") + ":1", text_color=color.white, text_size=size.small)
+    table.cell(analytics, 2, 10, rr_ratio >= risk_reward_min ? "✅" : "❌", text_color=color.white, text_size=size.small)
     
-    // Use proper string length calculation instead of str.sub
-    signal_reasons_short = str.length(signal_reasons) > 30 ? str.tostring(confluence_score) + " signals" : signal_reasons
-    table.cell(info_table, 0, 11, "Last Signal", text_color=color.black, text_size=size.small)
-    table.cell(info_table, 1, 11, signal_reasons_short, text_color=color.black, text_size=size.tiny)
-    table.cell(info_table, 2, 11, long_condition ? "🟢" : short_condition ? "🔴" : "⚪", text_color=color.black, text_size=size.small)
+    table.cell(analytics, 0, 11, "Trend Filter", text_color=color.white, text_size=size.small)
+    trend_status = higher_tf_bullish ? "Bullish" : higher_tf_bearish ? "Bearish" : "Neutral"
+    table.cell(analytics, 1, 11, trend_status, text_color=color.white, text_size=size.small)
+    table.cell(analytics, 2, 11, trend_filter ? "✅" : "❌", text_color=color.white, text_size=size.small)
+    
+    table.cell(analytics, 0, 12, "Trades Today", text_color=color.white, text_size=size.small)
+    table.cell(analytics, 1, 12, str.tostring(trades_today) + "/" + str.tostring(max_trades_per_day), text_color=color.white, text_size=size.small)
+    table.cell(analytics, 2, 12, trades_today < max_trades_per_day ? "✅" : "❌", text_color=color.white, text_size=size.small)
+    
+    signal_summary = long_condition ? "BUY " + str.tostring(final_confidence, "#.#") + "%" : 
+                     short_condition ? "SELL " + str.tostring(final_confidence, "#.#") + "%" : "NO SIGNAL"
+                     
+    signal_strength_text = is_elite ? "ELITE" : is_very_strong ? "PREMIUM" : is_strong ? "STRONG" : "STANDARD"
+    table.cell(analytics, 0, 13, signal_summary, text_color=color.white, bgcolor=color.new(color.gray, 0), text_size=size.small)
+    table.cell(analytics, 1, 13, signal_strength_text, text_color=color.white, bgcolor=color.new(color.gray, 0), text_size=size.small)
+    table.cell(analytics, 2, 13, long_condition ? "🟢" : short_condition ? "🔴" : "⚪", text_color=color.white, bgcolor=color.new(color.gray, 0), text_size=size.small)
 
-// Plot EMAs for trend context
-plot(ema12, color=color.blue, title="EMA 12", linewidth=1)
-plot(ema26, color=color.orange, title="EMA 26", linewidth=1)`;
+// Plot key levels and trend indicators
+plot(ema12, color=color.new(color.blue, 40), title="EMA 12", linewidth=1)
+plot(ema26, color=color.new(color.orange, 40), title="EMA 26", linewidth=1)
+plot(ema50, color=color.new(color.purple, 40), title="EMA 50", linewidth=2)
+plot(ema200, color=color.new(color.white, 40), title="EMA 200", linewidth=2)`;
   }
 }
